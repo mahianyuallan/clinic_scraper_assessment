@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+  clinic-scraper:
+    build: .
+    container_name: clinic-scraper
+    env_file:
+      - .env
+    command: python app/main.py --query "Dentist in Maadi"
