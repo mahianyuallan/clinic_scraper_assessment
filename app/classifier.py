@@ -1,14 +1,13 @@
 import os
 import json
-from openai import OpenAI
+from google import genai
 
-# Initialize OpenAI client
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is not set")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY is not set")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """
 You are an expert classifier for medical businesses in Egypt.
@@ -30,23 +29,27 @@ Return ONLY valid JSON in this exact format:
 }
 """
 
-def classify_clinic(name: str):
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": name}
-        ],
-        temperature=0,
-        max_tokens=150
-    )
-
-    content = response.choices[0].message.content
-
+def classify_clinic(name: str) -> dict:
     try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        # Defensive fallback if model returns invalid JSON
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                SYSTEM_PROMPT,
+                f"Business name: {name}"
+            ],
+            generation_config={
+                "temperature": 0,
+                "max_output_tokens": 150
+            }
+        )
+
+        text = response.text.strip()
+
+        # Defensive JSON parsing
+        return json.loads(text)
+
+    except Exception as e:
+        print(f"[WARN] LLM failed for '{name}': {e}")
         return {
             "keep": False,
             "doctor_name": None,
@@ -59,15 +62,11 @@ def filter_private_clinics(leads):
 
     for lead in leads:
         name = lead.get("name", "")
-        try:
-            result = classify_clinic(name)
+        result = classify_clinic(name)
 
-            if result.get("keep"):
-                lead["doctor_name"] = result.get("doctor_name")
-                lead["confidence"] = result.get("confidence")
-                filtered.append(lead)
-
-        except Exception as e:
-            print(f"[WARN] LLM failed for '{name}': {e}")
+        if result.get("keep"):
+            lead["doctor_name"] = result.get("doctor_name")
+            lead["confidence"] = result.get("confidence")
+            filtered.append(lead)
 
     return filtered
