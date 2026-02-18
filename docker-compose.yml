@@ -6,4 +6,6 @@ services:
     container_name: clinic-scraper
     env_file:
       - .env
+    volumes:
+      - ./data:/app/data
     command: python app/main.py --query "Dentist in Maadi"

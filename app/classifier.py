@@ -1,9 +1,14 @@
 import os
 import json
-import httpx
-import asyncio
+from openai import OpenAI
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# Initialize OpenAI client
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is not set")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_PROMPT = """
 You are an expert classifier for medical businesses in Egypt.
@@ -25,42 +30,43 @@ Return ONLY valid JSON in this exact format:
 }
 """
 
-async def classify_clinic(name: str):
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "llama3-8b-8192",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": name}
-                ],
-                "temperature": 0
-            },
-            timeout=20
-        )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
+def classify_clinic(name: str):
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": name}
+        ],
+        temperature=0,
+        max_tokens=150
+    )
+
+    content = response.choices[0].message.content
+
+    try:
         return json.loads(content)
+    except json.JSONDecodeError:
+        # Defensive fallback if model returns invalid JSON
+        return {
+            "keep": False,
+            "doctor_name": None,
+            "confidence": "Low"
+        }
+
 
 def filter_private_clinics(leads):
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set")
-
     filtered = []
 
     for lead in leads:
         name = lead.get("name", "")
         try:
-            result = asyncio.run(classify_clinic(name))
+            result = classify_clinic(name)
+
             if result.get("keep"):
                 lead["doctor_name"] = result.get("doctor_name")
                 lead["confidence"] = result.get("confidence")
                 filtered.append(lead)
+
         except Exception as e:
             print(f"[WARN] LLM failed for '{name}': {e}")
 
