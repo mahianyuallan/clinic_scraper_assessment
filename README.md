@@ -22,7 +22,6 @@ It was built as part of Sofindex's Junior AI Automation Engineer technical asses
 You need API keys for:
 
 - **SerpAPI** — Google Maps scraping
-- **Groq** - LLM Filtering (Llama 3)
 - **OpenAI** — LLM filtering 
 
 ---
@@ -34,7 +33,6 @@ Create a `.env` file in the project root:
 ```env
 SERP_API_KEY=your_serpapi_key_here
 OPENAI_API_KEY=your_groq_api_key_here
-GROQ_API_KEY=your_groq_api_key_here
 
 ```
 
